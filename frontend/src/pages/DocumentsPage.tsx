@@ -143,6 +143,8 @@ export function DocumentsPage() {
     {
       title: '文档名',
       dataIndex: 'name',
+      // 其余列固定宽度合计 1100px；文档名不设宽度时在常见笔记本宽度下会被挤成 0
+      width: 260,
       ellipsis: true,
       render: (name: string, record) => <Link to={`/documents/${record.id}`}>{name}</Link>,
     },
@@ -290,6 +292,7 @@ export function DocumentsPage() {
         rowKey="id"
         loading={listQuery.isLoading}
         columns={columns}
+        scroll={{ x: 1360 }}
         dataSource={listQuery.data?.items ?? []}
         pagination={{
           current: page,
