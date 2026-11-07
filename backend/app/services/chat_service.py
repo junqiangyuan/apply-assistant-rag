@@ -261,9 +261,14 @@ class ChatService:
                 state.update(await load_context(state, session, current_user.id))
 
                 # 2.语义缓存：相似度阈值+权限范围一致才视为命中。
-                cache_hit, query_embedding = await self._try_cache_lookup(
-                    question, permissions
-                )
+                # 缓存按原始问题存取；有历史时问题可能依赖上下文（如"那 MSDS 呢？"），
+                # 同一句话在不同会话里含义不同，查缓存会串答案，写缓存会污染其他会话，所以都跳过
+                if state.get("chat_history"):
+                    cache_hit, query_embedding = None, None
+                else:
+                    cache_hit, query_embedding = await self._try_cache_lookup(
+                        question, permissions
+                    )
                 if cache_hit is not None:
                     async for event in self._stream_cache_hit(
                         state, session, cache_hit, trace_id, current_user.id
