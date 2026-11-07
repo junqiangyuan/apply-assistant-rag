@@ -11,7 +11,7 @@ import {
   Typography,
   message as antdMessage,
 } from 'antd'
-import { RobotOutlined, SendOutlined, UserOutlined } from '@ant-design/icons'
+import { RobotOutlined, SendOutlined, StopOutlined, UserOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -42,7 +42,7 @@ const STORAGE_KEY_PREFIX = 'rag.chat.conversation_id'
 /** 与后端 REFUSAL_ANSWER 文案一致；用来判定历史消息是否拒答 */
 const REFUSAL_ANSWER = '抱歉，知识库中没有找到与该问题相关的可靠依据。'
 
-type AssistantStatus = 'streaming' | 'done' | 'error'
+type AssistantStatus = 'streaming' | 'done' | 'error' | 'stopped'
 
 interface UiMessage {
   id: string
@@ -93,6 +93,8 @@ export function ChatPage() {
   const [pendingMessages, setPendingMessages] = useState<UiMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  // 区分"用户点了停止"和"切换会话 / 卸载"引起的 abort：只有前者要保留已生成的部分答案
+  const stoppedByUserRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // 创建会话：仅由“新建对话”按钮触发
@@ -205,6 +207,7 @@ export function ChatPage() {
 
     const ctrl = new AbortController()
     abortRef.current = ctrl
+    stoppedByUserRef.current = false
 
     try {
       await streamChat({
@@ -265,6 +268,12 @@ export function ChatPage() {
           }
         },
       })
+      if (stoppedByUserRef.current) {
+        // 后端随连接断开取消生成、不落 assistant 消息；不回填历史，保留已流出的部分内容
+        updateAssistant((prev) => ({ ...prev, status: 'stopped' }))
+        await queryClient.invalidateQueries({ queryKey: conversationsQueryKey })
+        return
+      }
       // 流正常结束 → 用后端历史替换前端 pending；同时刷新侧栏（首次提问会改 title）
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] }),
@@ -282,6 +291,11 @@ export function ChatPage() {
       setIsStreaming(false)
       abortRef.current = null
     }
+  }
+
+  const handleStop = () => {
+    stoppedByUserRef.current = true
+    abortRef.current?.abort()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -350,15 +364,20 @@ export function ChatPage() {
             autoSize={{ minRows: 2, maxRows: 6 }}
             disabled={!conversationId || isStreaming}
           />
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={handleSend}
-            loading={isStreaming}
-            disabled={!conversationId || !draft.trim()}
-          >
-            发送
-          </Button>
+          {isStreaming ? (
+            <Button danger icon={<StopOutlined />} onClick={handleStop}>
+              停止
+            </Button>
+          ) : (
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleSend}
+              disabled={!conversationId || !draft.trim()}
+            >
+              发送
+            </Button>
+          )}
         </div>
       </Content>
     </Layout>
@@ -457,6 +476,11 @@ function MessageBubble({ message }: MessageBubbleProps) {
           <Text type="secondary">
             <Spin size="small" /> 正在思考...
           </Text>
+        ) : null}
+        {message.status === 'stopped' ? (
+          <div style={{ marginTop: 8 }}>
+            <Tag color="default">已停止生成</Tag>
+          </div>
         ) : null}
         {!isUser && message.traceId ? (
           <TraceIdPanel traceId={message.traceId} traceUrl={message.traceUrl} />
