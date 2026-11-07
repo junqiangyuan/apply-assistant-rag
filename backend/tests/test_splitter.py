@@ -43,15 +43,28 @@ def test_empty_cells_are_skipped_and_escaped_pipes_kept() -> None:
     assert text.strip() == "- a：x | y"
 
 
-def test_small_doc_keeps_disclaimer_table_and_sections_together() -> None:
+def test_title_and_disclaimer_join_first_section_and_top_sections_split() -> None:
     chunks = splitter.split(_md(TABLE_DOC))
 
-    assert len(chunks) == 1
-    content = chunks[0].page_content
-    assert content.startswith("## 枫原大学商学院")
-    assert "演示用虚构资料" in content
-    assert "项目：工商管理硕士（MBA）" in content
-    assert chunks[0].metadata["section_path"] == "枫原大学商学院 硕士项目申请要求"
+    assert len(chunks) == 2
+    first = chunks[0].page_content
+    assert first.startswith("## 枫原大学商学院")
+    assert "演示用虚构资料" in first
+    assert "项目：工商管理硕士（MBA）" in first
+    assert "二、面试" not in first
+    assert chunks[0].metadata["section_path"] == "枫原大学商学院 硕士项目申请要求 > 一、项目要求一览"
+    assert chunks[1].page_content.startswith("### 二、面试")
+
+
+def test_subsections_of_one_top_section_are_packed_together() -> None:
+    doc = (
+        "# 指南\n\n声明。\n\n## 三、要求\n\n### 3.1 GPA\n\nGPA 3.3。\n\n### 3.2 语言\n\n雅思 7.0。"
+        "\n\n## 四、截止\n\n11 月 15 日。"
+    )
+    chunks = splitter.split(_md(doc))
+
+    assert [c.page_content.split("\n")[0] for c in chunks] == ["# 指南", "## 四、截止"]
+    assert "### 3.2 语言" in chunks[0].page_content
 
 
 def test_sections_are_not_cut_and_no_chunk_ends_with_bare_heading(monkeypatch) -> None:

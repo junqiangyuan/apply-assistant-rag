@@ -4,8 +4,11 @@ Docling 输出的是 Markdown，按 Markdown 结构切分（`format=markdown` �
 
 1. 表格先转成"每行一条键值对"的文本。原始 Markdown 表格被字符切分器从行间切开后，
    后半截的行会丢掉表头，检索到也读不出"3.0 / 4.0"是哪一列；键值对让每一行自带字段名。
-2. 按标题切成小节，再把相邻小节贪心打包到 chunk_size 以内。小节边界是天然的语义边界，
-   这样一个问答或一个小节不会被从中间切断，也不会出现 chunk 末尾只挂着一个标题的情况。
+2. 按标题切成小节。文档标题下的一级小节（如"一、服务套餐""Q3"）各自成块，只把同一
+   一级小节内的子节贪心打包到 chunk_size 以内；文档标题和顶部声明并入第一个小节。
+   不跨一级小节打包，是因为把"套餐 / 客服 / 退费"塞进同一个 chunk 会稀释 embedding，
+   实测相关问题的相似度从 0.68 掉到 0.57，跌破检索阈值。小节边界是天然的语义边界，
+   一个问答或一个小节不会被从中间切断，也不会出现 chunk 末尾只挂着一个标题的情况。
 3. 只有单个小节本身超过 chunk_size 时，才退回字符级递归切分，并给后续片段补上标题，
    避免片段脱离上下文。
 
@@ -99,6 +102,8 @@ class _Section:
     path: list[str]
     lines: list[str] = field(default_factory=list)
     has_body: bool = False
+    # 标题嵌套深度（文档标题为 1，顶部无标题的前言为 0）；合并后取其中最浅的一级
+    depth: int = 0
 
     @property
     def text(self) -> str:
@@ -120,7 +125,7 @@ def _split_sections(markdown: str) -> list[_Section]:
                 sections.append(current)
             level, title = len(match.group(1)), match.group(2).strip()
             stack = [(lv, t) for lv, t in stack if lv < level] + [(level, title)]
-            current = _Section(path=[t for _, t in stack], lines=[line])
+            current = _Section(path=[t for _, t in stack], lines=[line], depth=len(stack))
             continue
         current.lines.append(line)
         if line.strip():
@@ -144,6 +149,7 @@ def _attach_bare_headings(sections: list[_Section]) -> list[_Section]:
                 path=section.path,
                 lines=[ln for p in pending for ln in p.lines] + section.lines,
                 has_body=True,
+                depth=min(p.depth for p in [*pending, section]),
             )
             pending = []
         merged.append(section)
@@ -176,21 +182,42 @@ def _format_path(path: list[str]) -> str | None:
     return " > ".join(path)[:_SECTION_PATH_MAX]
 
 
+def _group_depth(sections: list[_Section]) -> int:
+    """一级小节所在的深度：最浅一层只有一个标题时视为文档标题，取下一层。"""
+    depths = [s.depth for s in sections if s.depth > 0]
+    if not depths:
+        return 1
+    top = min(depths)
+    if depths.count(top) == 1 and any(d > top for d in depths):
+        return top + 1
+    return top
+
+
 def _split_markdown(document: Document, chunk_size: int) -> list[Document]:
     text = tables_to_key_value(document.page_content)
     sections = _attach_bare_headings(_split_sections(text))
 
+    group_depth = _group_depth(sections)
+
     chunks: list[Document] = []
     buffer: list[str] = []
     buffer_path: list[str] = []
+    # buffer 里是否已有一级小节的正文；只有文档标题 / 前言时不切块，留给下一个小节
+    buffer_has_group = False
 
     def flush() -> None:
+        nonlocal buffer_has_group
         if buffer:
             chunks.append(_make_doc(document, "\n\n".join(buffer), buffer_path))
             buffer.clear()
+        buffer_has_group = False
 
     for section in sections:
         body = section.text
+        is_preamble = section.depth < group_depth
+        starts_group = not is_preamble and section.depth == group_depth
+        if starts_group and buffer_has_group:
+            flush()
         if len(body) > chunk_size:
             flush()
             for piece in _split_oversized(section, chunk_size):
@@ -199,9 +226,11 @@ def _split_markdown(document: Document, chunk_size: int) -> list[Document]:
         joined_len = sum(len(b) for b in buffer) + 2 * len(buffer) + len(body)
         if buffer and joined_len > chunk_size:
             flush()
-        if not buffer:
+        if not buffer_has_group:
             buffer_path = section.path
         buffer.append(body)
+        if not is_preamble:
+            buffer_has_group = True
     flush()
     return chunks
 
