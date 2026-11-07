@@ -1,0 +1,42 @@
+# 环境变量与本地配置
+.env
+.env.*
+!.env.example
+
+# Python 虚拟环境
+.venv/
+venv/
+env/
+
+# Python 缓存与编译产物
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 测试、类型检查与代码检查缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Python 构建产物
+build/
+dist/
+*.egg-info/
+
+# 日志与系统文件
+*.log
+.DS_Store
+
+# IDE 配置
+.idea/
+/.vscode/
+
+# 前端依赖与构建产物
+node_modules/
+frontend/dist/
+
+# 本地草稿
+.scratch/

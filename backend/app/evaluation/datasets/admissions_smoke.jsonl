@@ -1,0 +1,5 @@
+{"id": "case_001", "question": "北岸理工大学计算机科学硕士的 GPA 最低要求是多少？", "expected_answer": "MSCS 要求本科累计 GPA 不低于 3.3/4.0。", "expected_document_names": ["北岸理工大学_研究生申请指南.md"], "expected_keywords": ["3.3"], "should_refuse": false, "tags": ["院校要求", "事实问答"]}
+{"id": "case_010", "question": "枫原大学金融硕士要求 GMAT 多少分？", "expected_answer": "MSF 要求 GMAT 650 或 GRE 320。", "expected_document_names": ["枫原大学_商学院硕士申请要求.docx"], "expected_keywords": ["650", "320"], "should_refuse": false, "tags": ["院校要求", "表格问答"]}
+{"id": "case_014", "question": "个人陈述推荐写成什么结构？", "expected_answer": "五段式：开头钩子、学术背景、实践经历、为什么选择该项目、职业目标。", "expected_document_names": ["个人陈述写作规范.md"], "expected_keywords": ["五段", "开头钩子", "职业目标"], "should_refuse": false, "tags": ["文书", "事实问答"]}
+{"id": "case_021", "question": "已经递交了第一所学校的申请，现在想退费可以吗？", "expected_answer": "已递交第一所学校申请后，服务费不予退还。", "expected_document_names": ["服务协议与退费政策.md"], "expected_keywords": ["不予退还"], "should_refuse": false, "tags": ["退费", "政策"]}
+{"id": "case_023", "question": "北岸理工大学博士项目的奖学金有多少？", "expected_answer": "", "expected_document_names": [], "expected_keywords": [], "should_refuse": true, "tags": ["拒答", "超出知识库"]}

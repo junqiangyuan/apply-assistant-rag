@@ -1,0 +1,13 @@
+# 生产环境 docker-compose override：仅在服务器上使用
+# compose 默认会合并 docker-compose.override.yml，把 pg/redis 端口收回 127.0.0.1
+# 用法：与主 compose 同目录放置后，直接 `docker compose up -d`
+
+services:
+  postgres:
+    # !override 让 ports 整段替换主 compose，否则会和主 compose 的 ${POSTGRES_PORT:-5432}:5432 双绑
+    ports: !override
+      - "127.0.0.1:55432:5432"
+
+  redis:
+    ports: !override
+      - "127.0.0.1:56379:6379"

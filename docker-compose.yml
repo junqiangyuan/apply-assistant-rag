@@ -1,0 +1,41 @@
+services:
+  postgres:
+    # 自定义镜像：在 pgvector/pgvector:pg16 之上叠加 zhparser，
+    # 一次构建同时支持 pgvector 向量检索 + zhparser 中文全文检索。
+    image: yuanjunqiang/rag-postgres:pg16-v1
+    container_name: rag-kb-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rag}
+      POSTGRES_DB: ${POSTGRES_DB:-rag_kb}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - rag_kb_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rag} -d ${POSTGRES_DB:-rag_kb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    # 语义缓存、滑动窗口限流、Celery broker/backend 共用同一个 Redis 实例。
+    # 使用 redis-stack-server 镜像（命令完全兼容 redis:7）：多带 RediSearch 模块，
+    # 让语义缓存可以通过 RedisVL 的 KNN 向量索引检索，避免应用层全量扫描。
+    image: redis/redis-stack-server:7.4.0-v0
+    container_name: rag-kb-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - rag_kb_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  rag_kb_pgdata:
+  rag_kb_redisdata:

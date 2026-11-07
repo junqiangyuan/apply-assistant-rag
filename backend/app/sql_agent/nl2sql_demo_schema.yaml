@@ -1,0 +1,75 @@
+metrics:
+  overdue_rate:
+    name: 贷款逾期率
+    aliases:
+    - 贷款逾期率
+    - 逾期率
+    - 超期比例
+    - 逾期多少
+    table: nl2sql_demo.loan_records
+    formula: SUM(CASE WHEN overdue_days > 30 THEN 1 ELSE 0 END) * 1.0 / COUNT(*)
+    alias: overdue_rate
+    filter: snapshot_date = '{snapshot_date}'
+    time_field: snapshot_date
+    time_grain: snapshot
+    dimensions:
+    - member_unit
+    description: 超过30天逾期贷款笔数占快照日贷款总笔数比例。
+  loan_balance:
+    name: 贷款余额
+    aliases:
+    - 贷款余额
+    - 余额
+    - 未偿余额
+    table: nl2sql_demo.loan_records
+    formula: SUM(balance)
+    alias: loan_balance
+    filter: snapshot_date = '{snapshot_date}'
+    time_field: snapshot_date
+    time_grain: snapshot
+    dimensions:
+    - member_unit
+    description: 快照日未偿贷款本金余额之和。
+tables:
+  nl2sql_demo.loan_records:
+    description: 贷款记录主表，一行一笔贷款。
+    relations:
+    - target: nl2sql_demo.repayment_plans
+      join: nl2sql_demo.loan_records.loan_id = nl2sql_demo.repayment_plans.loan_id
+    fields:
+    - name: loan_id
+      type: text
+      description: 贷款唯一标识
+    - name: member_unit
+      type: text
+      description: 成员单位名称
+    - name: balance
+      type: numeric
+      description: 未偿贷款本金余额
+    - name: overdue_days
+      type: integer
+      description: 逾期天数
+    - name: snapshot_date
+      type: date
+      description: 状态快照日期
+  nl2sql_demo.repayment_plans:
+    description: 贷款还款计划表，一笔贷款可有多条计划。
+    relations:
+    - target: nl2sql_demo.loan_records
+      join: nl2sql_demo.repayment_plans.loan_id = nl2sql_demo.loan_records.loan_id
+    fields:
+    - name: repayment_id
+      type: text
+      description: 还款计划唯一标识
+    - name: loan_id
+      type: text
+      description: 贷款唯一标识
+    - name: due_date
+      type: date
+      description: 计划还款日期
+    - name: paid_date
+      type: date
+      description: 实际还款日期，空表示未还
+    - name: amount
+      type: numeric
+      description: 计划还款金额

@@ -1,0 +1,18 @@
+[Unit]
+Description=RAG KB API (uvicorn)
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/www/wwwroot/rag-kb/backend
+EnvironmentFile=/www/wwwroot/rag-kb/.env
+ExecStart=/www/server/pyporject_evn/versions/3.12.3/bin/uv run uvicorn app.main:app --host 127.0.0.1 --port 8100
+TimeoutStartSec=300
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:/var/log/rag-kb/api.log
+StandardError=append:/var/log/rag-kb/api.err.log
+
+[Install]
+WantedBy=multi-user.target

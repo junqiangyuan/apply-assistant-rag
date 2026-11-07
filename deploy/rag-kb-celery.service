@@ -1,0 +1,17 @@
+[Unit]
+Description=RAG KB Celery worker
+After=network.target docker.service rag-kb-api.service
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/www/wwwroot/rag-kb/backend
+EnvironmentFile=/www/wwwroot/rag-kb/.env
+ExecStart=/www/server/pyporject_evn/versions/3.12.3/bin/uv run celery -A app.celery_app worker -l info --concurrency=2
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:/var/log/rag-kb/celery.log
+StandardError=append:/var/log/rag-kb/celery.err.log
+
+[Install]
+WantedBy=multi-user.target
