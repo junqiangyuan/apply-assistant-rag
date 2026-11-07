@@ -43,4 +43,7 @@ async def parse(filename: str, content: bytes) -> list[Document]:
     if not markdown.strip():
         raise DocumentParseError("解析结果为空，文档可能损坏或不受支持")
 
-    return [Document(page_content=markdown, metadata={"source": filename})]
+    # format=markdown 让 splitter 按标题和表格结构切分
+    return [
+        Document(page_content=markdown, metadata={"source": filename, "format": "markdown"})
+    ]
