@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import String, and_, cast, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.elements import ColumnElement
@@ -127,15 +127,21 @@ class DocumentChunkRepository:
         permission_tags: list[str] | None = None,
         document_names: list[str] | None = None,
     ) -> list[tuple[DocumentChunk, float]]:
-        """中文全文检索 Top-K：plainto_tsquery + ts_rank。
+        """中文全文检索 Top-K：分词后 OR 匹配 + ts_rank。
 
         - 用 chinese_zh 文本搜索配置（zhparser 切词，迁移里建好）
-        - plainto_tsquery：自动把多个词 AND 起来，对用户输入容错最好
-          （"差旅 报销"和"差旅报销"都会切成同一组 token）
+        - 先用 plainto_tsquery 切词，再把词间的 AND 换成 OR：自然语言问题里总有"需要""多少"
+          这类文档里不出现的词，AND 会让整条查询 0 命中（样例测评集 25 问里 23 问为 0），
+          混合检索就退化成了纯向量；OR 之后由 ts_rank 按命中词数和词频排序
         - 仅命中 status='ready' 文档，避免拿到尚未完成入库的脏 chunk
         - permission_tags：用户有效权限标签；None / 含 "*" 不限；其他按数组重叠 + 空标签公开
         """
-        tsquery = func.plainto_tsquery("chinese_zh", query)
+        tsquery = func.to_tsquery(
+            "chinese_zh",
+            func.replace(
+                cast(func.plainto_tsquery("chinese_zh", query), String), " & ", " | "
+            ),
+        )
         rank_expr = func.ts_rank(DocumentChunk.content_tsv, tsquery)
         conditions: list[ColumnElement[bool]] = [
             Document.status == "ready",
