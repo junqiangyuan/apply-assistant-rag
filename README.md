@@ -14,7 +14,7 @@
 > ⚠️ `sample_data/` 中的院校、机构、分数线、费用与日期**全部为虚构**，仅用于演示检索与问答，不代表任何真实院校或机构。
 
 - 在线演示：[待补充]
-- 截图：见下方「截图」一节；端到端验证过程见 [docs/verification-report.md](docs/verification-report.md)
+- 截图：见下方「截图」一节
 
 ## 截图
 
@@ -30,9 +30,9 @@
 | --- | --- |
 | ![条件推理](docs/screenshots/03c-chat-conditional.png) | ![拒答](docs/screenshots/04-chat-refusal.png) |
 
-| 生成中停止 | 评测结果 |
-| --- | --- |
-| ![停止生成](docs/screenshots/06-chat-stopped.png) | ![评测结果](docs/screenshots/08-eval-summary.png) |
+| 生成中停止 |
+| --- |
+| ![停止生成](docs/screenshots/06-chat-stopped.png) |
 
 ## 功能
 
@@ -122,11 +122,13 @@ npm run dev                    # http://localhost:5173
 
 ### 评测结果
 
-`admissions`（25 条）在本地的一次完整运行（2026-11-07，详见 [验证报告](docs/verification-report.md)）：
+`admissions`（25 条）在本地的一次完整运行（2026-11-07）：
 
 | 引用命中率 | 拒答正确率 | Faithfulness | Answer Relevancy | Context Precision | Context Recall | 平均耗时 | 首 token 延迟 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 100%（22/22） | 96%（24/25） | 0.833 | 0.871 | 0.806 | 0.950 | 19.7 s | 14.1 s |
+
+![评测结果](docs/screenshots/08-eval-summary.png)
 
 配置：`CHAT_MODEL=gpt-6.1-terra`（生成与 RAGAS 评判共用）、`text-embedding-v3`、`RERANK_ENABLED=False`、`VERIFY_ANSWER_ENABLED=True`、`RETRIEVAL_TOP_K=5`、`RETRIEVAL_RECALL_TOP_K=20`、`RETRIEVAL_MIN_SCORE=0.6`、`RERANK_MIN_SCORE=0.3`、`CHUNK_SIZE=600`、`AGENT_MAX_ROUNDS=3`，RAGAS 0.4.3。
 
