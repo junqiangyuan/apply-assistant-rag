@@ -14,7 +14,25 @@
 > ⚠️ `sample_data/` 中的院校、机构、分数线、费用与日期**全部为虚构**，仅用于演示检索与问答，不代表任何真实院校或机构。
 
 - 在线演示：[待补充]
-- 截图：[待补充]
+- 截图：见下方「截图」一节；端到端验证过程见 [docs/verification-report.md](docs/verification-report.md)
+
+## 截图
+
+| 文档入库（6 份样例资料） | Word 表格转为键值对后的 chunk |
+| --- | --- |
+| ![文档入库](docs/screenshots/01-documents-ingested.png) | ![Word 表格 chunk](docs/screenshots/02-chunks-docx-table.png) |
+
+| 表格问答 | 跨文档问答（Multi-Query） |
+| --- | --- |
+| ![表格问答](docs/screenshots/03-chat-table-qa.png) | ![跨文档问答](docs/screenshots/03b-chat-cross-doc.png) |
+
+| 条件推理 | 知识库外问题拒答 |
+| --- | --- |
+| ![条件推理](docs/screenshots/03c-chat-conditional.png) | ![拒答](docs/screenshots/04-chat-refusal.png) |
+
+| 生成中停止 | 评测结果 |
+| --- | --- |
+| ![停止生成](docs/screenshots/06-chat-stopped.png) | ![评测结果](docs/screenshots/08-eval-summary.png) |
 
 ## 功能
 
@@ -23,7 +41,7 @@
 | 文档入库 | PDF / Word / Markdown 解析（Docling）、表格转写、清洗、分段、embedding；Celery 异步任务；按 `chunk_hash` 增量重建索引 |
 | 检索 | pgvector 向量检索 + PostgreSQL zhparser 中文全文检索，RRF 融合；可开关的 Reranker 精排 |
 | Agent | LangGraph 编排：查询规范化 → 路由 → 检索规划 → 检索 → 观察上下文（不足则回到规划重试，最多 3 轮）→ 精排 → 上下文判定 → 生成 / 拒答 |
-| 对话 | SSE 流式输出、节点步骤面板、引用来源、多轮上下文化改写、可随时中断生成 |
+| 对话 | SSE 流式输出、检索路由与 Agent 轮次面板、引用来源、多轮上下文化改写、可随时中断生成 |
 | 可信度 | 答案引用校验（answer verifier），证据不足时主动拒答 |
 | 评测 | 测评集管理、RAGAS 指标、Bad Case 归因分类、评测运行历史 |
 | 可观测性 | LangSmith Trace，前端展示 trace_id 并可跳转 |
@@ -102,7 +120,20 @@ npm run dev                    # http://localhost:5173
 - `backend/app/evaluation/datasets/admissions.jsonl`：25 条测评用例，覆盖事实问答、表格问答、跨文档对比、条件推理和应拒答问题；`admissions_smoke.jsonl` 为 5 条冒烟集。
 - 在「评测」页选择测评集运行，查看 RAGAS 指标与 Bad Case 归因。
 
-评测结果：[待补充，跑完后附上数据和对应的配置]
+### 评测结果
+
+`admissions`（25 条）在本地的一次完整运行（2026-11-07，详见 [验证报告](docs/verification-report.md)）：
+
+| 引用命中率 | 拒答正确率 | Faithfulness | Answer Relevancy | Context Precision | Context Recall | 平均耗时 | 首 token 延迟 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 100%（22/22） | 96%（24/25） | 0.833 | 0.871 | 0.806 | 0.950 | 19.7 s | 14.1 s |
+
+配置：`CHAT_MODEL=gpt-6.1-terra`（生成与 RAGAS 评判共用）、`text-embedding-v3`、`RERANK_ENABLED=False`、`VERIFY_ANSWER_ENABLED=True`、`RETRIEVAL_TOP_K=5`、`RETRIEVAL_RECALL_TOP_K=20`、`RETRIEVAL_MIN_SCORE=0.6`、`RERANK_MIN_SCORE=0.3`、`CHUNK_SIZE=600`、`AGENT_MAX_ROUNDS=3`，RAGAS 0.4.3。
+
+说明：
+
+- 四项 RAGAS 指标是对返回有效值的样本取平均，有效样本数依次为 14 / 8 / 14 / 20，波动较大；引用命中率和拒答正确率由规则计算，覆盖全部用例。
+- 唯一未通过的用例是 case_025（“帮我预测能不能被录取”）：系统没有拒答，而是说明无法预测，并列出了申请要求。
 
 ## 设计取舍
 
