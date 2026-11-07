@@ -19,7 +19,7 @@ from app.db.repositories.conversation_repo import ConversationRepository
 from app.db.session import AsyncSessionLocal
 from app.ingestion import embedder
 from app.llm.answer_verifier import VerifyResult, get_answer_verifier
-from app.llm.prompts import REFUSAL_ANSWER
+from app.llm.prompts import REFUSAL_ANSWER, is_refusal_answer
 from app.retrieval.vector_retriever import RetrievedChunk
 from app.services.permission_service import (
     WILDCARD_PERMISSION_TAG,
@@ -329,8 +329,15 @@ class ChatService:
                         yield {"event": "token", "data": {"delta": delta}}
                     state["answer"] = "".join(answer_parts)
 
+                    if is_refusal_answer(state["answer"]):
+                        # LLM 读完片段后自行拒答：与图内拒答同口径，撤回已下发的引用，
+                        # 不再 verify，也不写入语义缓存（否则拒答会被当成正常答案复用）
+                        state["answer"] = REFUSAL_ANSWER
+                        state["refused"] = True
+                        citations_payload = []
+                        yield {"event": "citations", "data": {"citations": []}}
                     # 6. 答案校验，verify 失败替换为拒答文案
-                    if settings.verify_answer_enabled:
+                    elif settings.verify_answer_enabled:
                         verify_result = await get_answer_verifier().verify(
                             question=state["query"],
                             answer=state["answer"],
@@ -649,7 +656,12 @@ class ChatService:
                 answer = "".join(parts)
                 state["answer"] = answer
 
-                if settings.verify_answer_enabled:
+                if is_refusal_answer(answer):
+                    # 与 stream_answer 同口径：LLM 自行拒答视为拒答
+                    answer = REFUSAL_ANSWER
+                    state["answer"] = answer
+                    state["refused"] = True
+                elif settings.verify_answer_enabled:
                     verify_result = await get_answer_verifier().verify(
                         question=question,
                         answer=answer,
@@ -730,7 +742,12 @@ class ChatService:
             answer = "".join(parts)
             state["answer"] = answer
 
-            if settings.verify_answer_enabled:
+            if is_refusal_answer(answer):
+                # 与 stream_answer 同口径：LLM 自行拒答视为拒答
+                answer = REFUSAL_ANSWER
+                state["answer"] = answer
+                state["refused"] = True
+            elif settings.verify_answer_enabled:
                 verify_result = await get_answer_verifier().verify(
                     question=question,
                     answer=answer,

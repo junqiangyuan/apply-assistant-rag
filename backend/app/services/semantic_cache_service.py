@@ -5,6 +5,7 @@ from functools import lru_cache
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.llm.prompts import is_refusal_answer
 from redisvl.extensions.cache.llm import SemanticCache
 from redisvl.query.filter import Tag
 from redisvl.utils.vectorize import CustomTextVectorizer
@@ -73,6 +74,9 @@ class SemanticCacheService:
             return None
 
         hit = hits[0]
+        if is_refusal_answer(hit.get("response")):
+            # 旧版本会把 LLM 自行拒答的文案当正常答案写进缓存；命中时视为未命中，重新走检索
+            return None
         metadata = hit.get("metadata") or {}
         if isinstance(metadata, str):
             try:

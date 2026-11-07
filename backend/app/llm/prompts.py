@@ -10,10 +10,27 @@ from app.workflows.rag_state import ChatContextMessage
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
+# 统一拒答文案：图内拒答、verify 失败替换、生成阶段 LLM 自行拒答都用这一句，
+# 前端也按"内容等于该文案"识别历史消息里的拒答
+REFUSAL_ANSWER = "抱歉，知识库中没有找到与该问题相关的可靠依据。"
+
+# 旧版 Prompt 让 LLM 输出的拒答句，识别时兼容，避免历史 / 缓存里的旧文案被当成正常答案
+_LEGACY_REFUSAL_ANSWERS = ("抱歉，知识库中没有找到相关信息。",)
+_REFUSAL_STRIP_CHARS = " \t\r\n\"'“”「」*"
+
+
+def is_refusal_answer(answer: str | None) -> bool:
+    """LLM 在检索到片段后仍判断无法回答时会原样输出拒答句，这里把它识别为拒答。"""
+    if not answer:
+        return False
+    normalized = answer.strip(_REFUSAL_STRIP_CHARS)
+    return normalized in (REFUSAL_ANSWER, *_LEGACY_REFUSAL_ANSWERS)
+
+
 _SYSTEM_PROMPT = """你是企业知识库助手，必须严格遵守以下规则：
 
 1. 只基于下面【参考资料】中提供的【片段】作答，禁止使用片段之外的常识或主观推断。
-2. 如果所有片段都无法回答用户问题，直接回复："抱歉，知识库中没有找到相关信息。" 不要编造。
+2. 如果所有片段都无法回答用户问题，只回复这一句，不加引用、不加其他内容："{refusal_answer}" 不要编造。
 3. 回答使用简体中文，使用 Markdown 排版（必要时使用列表、加粗等结构）。
 4. 引用规则（**最重要**，违反任何一条都视为错误）：
    - 在每个结论后用方括号标注片段编号，例如 [1] 或 [2][3]。
@@ -90,15 +107,12 @@ def build_answer_messages(
     prompt_value = RAG_ANSWER_PROMPT.invoke(
         {
             "context": format_context(chunks),
+            "refusal_answer": REFUSAL_ANSWER,
             "question": question,
             "chat_history": history_to_messages(history),
         }
     )
     return list(prompt_value.to_messages())
-
-
-# 检索失败时的固定拒答文案，集中管理便于后续章节统一调整
-REFUSAL_ANSWER = "抱歉，知识库中没有找到与该问题相关的可靠依据。"
 
 
 # ============================================================================
